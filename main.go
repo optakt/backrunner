@@ -19,8 +19,7 @@ import (
 )
 
 const (
-	AddressRouter    = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
-	AddressMulticall = "0xeefBa1e63905eF1D7ACbA5a8513c70307C1cE441"
+	AddressRouter = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
 )
 
 var (
@@ -52,14 +51,14 @@ func main() {
 	}
 	log = log.Level(level)
 
-	router, err := abi.JSON(strings.NewReader(Router2))
+	router, err := abi.JSON(strings.NewReader(ABIRouter2))
 	if err != nil {
 		log.Fatal().Err(err).Msg("could not decode router ABI")
 	}
 
-	multicall, err := abi.JSON(strings.NewReader(Multicall2))
+	multicall, err := router.MethodById(SigMulticall)
 	if err != nil {
-		log.Fatal().Err(err).Msg("could not decode multicall ABI")
+		log.Fatal().Err(err).Msg("could not get multicall function")
 	}
 
 	rpcClient, err := rpc.Dial(apiURL)
@@ -112,10 +111,30 @@ Loop:
 				continue
 			}
 
+			values, err := multicall.Inputs.Unpack(inputData[4:])
+			if err != nil {
+				log.Error().Err(err).Msg("could not unpack multicall")
+				continue
+			}
+
+			var input Multicall
+			err = multicall.Inputs.Copy(&input, values)
+			if err != nil {
+				log.Error().Err(err).Msg("could not copy values")
+				continue
+			}
+
 			log.Info().
 				Hex("tx_hash", txHash[:]).
 				Hex("input_data", inputData).
-				Msg("found qualifying transaction")
+				Time("deadline", time.Unix(input.Deadline.Int64(), 0)).
+				Msg("unpacked qualifying multicall")
+
+			for _, callData := range input.Data {
+				log.Info().
+					Hex("call_data", callData).
+					Msg("unwound multicall call")
+			}
 		}
 	}
 
@@ -126,9 +145,6 @@ Loop:
 	}
 
 	eth.Close()
-
-	_ = router
-	_ = multicall
 
 	os.Exit(0)
 }
