@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/signal"
@@ -18,7 +19,12 @@ import (
 )
 
 const (
-	SwapRouter2 = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+	AddressRouter    = "0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45"
+	AddressMulticall = "0xeefBa1e63905eF1D7ACbA5a8513c70307C1cE441"
+)
+
+var (
+	SigMulticall = []byte{0x5a, 0xe4, 0x01, 0xdc}
 )
 
 func main() {
@@ -83,31 +89,46 @@ Loop:
 
 		case txHash := <-txHashes:
 
-			tx, pending, err := eth.TransactionByHash(ctx, txHash)
+			tx, _, err := eth.TransactionByHash(ctx, txHash)
 			if err != nil {
-				log.Error().Err(err).Msg("could not get transaction")
-			}
-			if !pending {
-				log.Debug().Msg("tx no longer pending")
+				log.Debug().Err(err).Msg("could not get transaction")
 				continue
 			}
 
 			if tx.To() == nil {
-				log.Debug().Msg("to address empty")
+				log.Debug().Msg("skipping contract creation")
 				continue
 			}
 
 			to := *tx.To()
-			if to != common.HexToAddress(SwapRouter2) {
-				log.Debug().Msg("skipping irrelevant to address")
+			if to != common.HexToAddress(AddressRouter) {
+				log.Debug().Msg("skipping non-router transaction")
+				continue
+			}
+
+			inputData := tx.Data()
+			if !bytes.Equal(inputData[0:4], SigMulticall) {
+				log.Debug().Msg("skipping non-multicall transaction")
 				continue
 			}
 
 			log.Info().
 				Hex("tx_hash", txHash[:]).
-				Msg("found transaction on Uniswap v2 Router 2")
+				Hex("input_data", inputData).
+				Msg("found qualifying transaction")
 		}
 	}
+
+	sub.Unsubscribe()
+
+	close(txHashes)
+	for range txHashes {
+	}
+
+	eth.Close()
+
+	_ = router
+	_ = multicall
 
 	os.Exit(0)
 }
