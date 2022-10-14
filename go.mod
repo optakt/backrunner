@@ -1,4 +1,4 @@
-module github.com/awfm9/backrunner
+module github.com/optakt/backrunner
 
 go 1.19
 
