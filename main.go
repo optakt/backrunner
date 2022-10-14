@@ -4,11 +4,13 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/spf13/pflag"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
@@ -43,6 +45,16 @@ func main() {
 		log.Fatal().Str("log_level", logLevel).Err(err).Msg("invalid log level")
 	}
 	log = log.Level(level)
+
+	router, err := abi.JSON(strings.NewReader(Router2))
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not decode router ABI")
+	}
+
+	multicall, err := abi.JSON(strings.NewReader(Multicall2))
+	if err != nil {
+		log.Fatal().Err(err).Msg("could not decode multicall ABI")
+	}
 
 	rpcClient, err := rpc.Dial(apiURL)
 	if err != nil {
